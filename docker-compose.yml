@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: shopassist-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shopassist}
+      POSTGRES_USER: ${POSTGRES_USER:-shopassist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopassist123}
+      TZ: ${TZ:-UTC}
+      PGTZ: ${TZ:-UTC}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Persistent data - named external volume so it survives
+      # `docker compose down` and container recreation.
+      - shopassist-postgres-data:/var/lib/postgresql/data
+      # Initialization scripts, executed once (in filename order) the first
+      # time the volume is empty. Mounted as individual files rather than a
+      # directory so this repo's schema/seeds/scripts folder layout can stay
+      # exactly as-is while still controlling execution order via the
+      # target filenames below.
+      - ./postgres/schema/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./postgres/schema/constraints.sql:/docker-entrypoint-initdb.d/02_constraints.sql:ro
+      - ./postgres/schema/indexes.sql:/docker-entrypoint-initdb.d/03_indexes.sql:ro
+      - ./postgres/seeds/seed_users.sql:/docker-entrypoint-initdb.d/04_seed_users.sql:ro
+      - ./postgres/seeds/seed_products.sql:/docker-entrypoint-initdb.d/05_seed_products.sql:ro
+      - ./postgres/seeds/seed_orders.sql:/docker-entrypoint-initdb.d/06_seed_orders.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopassist} -d ${POSTGRES_DB:-shopassist}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - shopassist-network
+
+networks:
+  shopassist-network:
+    name: shopassist-network
+
+volumes:
+  shopassist-postgres-data:
+    name: shopassist-postgres-data
+    external: true
