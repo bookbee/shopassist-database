@@ -16,55 +16,71 @@ BEGIN
         ALTER TABLE customers ADD CONSTRAINT uq_customers_email UNIQUE (email);
     END IF;
 
-    -- products.sku must be unique
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_products_sku') THEN
-        ALTER TABLE products ADD CONSTRAINT uq_products_sku UNIQUE (sku);
+    -- items.price / mrp must be sane
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_items_price_nonneg') THEN
+        ALTER TABLE items ADD CONSTRAINT chk_items_price_nonneg CHECK (price >= 0);
     END IF;
 
-    -- orders.order_number must be unique
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_orders_order_number') THEN
-        ALTER TABLE orders ADD CONSTRAINT uq_orders_order_number UNIQUE (order_number);
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_items_mrp_gte_price') THEN
+        ALTER TABLE items ADD CONSTRAINT chk_items_mrp_gte_price CHECK (mrp IS NULL OR mrp >= price);
     END IF;
 
-    -- orders.customer_id -> customers.id
+    -- sessions.customer_id -> customers.customer_id
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sessions_customer') THEN
+        ALTER TABLE sessions
+            ADD CONSTRAINT fk_sessions_customer
+            FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE SET NULL;
+    END IF;
+
+    -- sessions.ended_at cannot precede sessions.started_at
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_sessions_ended_after_started') THEN
+        ALTER TABLE sessions ADD CONSTRAINT chk_sessions_ended_after_started
+            CHECK (ended_at IS NULL OR ended_at >= started_at);
+    END IF;
+
+    -- orders.customer_id -> customers.customer_id
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN
         ALTER TABLE orders
             ADD CONSTRAINT fk_orders_customer
-            FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT;
+            FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE RESTRICT;
     END IF;
 
-    -- order_items.order_id -> orders.id
+    -- orders.session_id -> sessions.session_id
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_session') THEN
+        ALTER TABLE orders
+            ADD CONSTRAINT fk_orders_session
+            FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE SET NULL;
+    END IF;
+
+    -- orders.subtotal / discount / shipping_fee / total_amount must be non-negative
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_subtotal_nonneg') THEN
+        ALTER TABLE orders ADD CONSTRAINT chk_orders_subtotal_nonneg CHECK (subtotal >= 0);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_discount_nonneg') THEN
+        ALTER TABLE orders ADD CONSTRAINT chk_orders_discount_nonneg CHECK (discount >= 0);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_shipping_fee_nonneg') THEN
+        ALTER TABLE orders ADD CONSTRAINT chk_orders_shipping_fee_nonneg CHECK (shipping_fee >= 0);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_total_nonneg') THEN
+        ALTER TABLE orders ADD CONSTRAINT chk_orders_total_nonneg CHECK (total_amount >= 0);
+    END IF;
+
+    -- order_items.order_id -> orders.order_id
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_order_items_order') THEN
         ALTER TABLE order_items
             ADD CONSTRAINT fk_order_items_order
-            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
+            FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE;
     END IF;
 
-    -- order_items.product_id -> products.id
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_order_items_product') THEN
+    -- order_items.item_id -> items.item_id
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_order_items_item') THEN
         ALTER TABLE order_items
-            ADD CONSTRAINT fk_order_items_product
-            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT;
-    END IF;
-
-    -- products.price / stock_quantity must be non-negative
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_price_nonneg') THEN
-        ALTER TABLE products ADD CONSTRAINT chk_products_price_nonneg CHECK (price >= 0);
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_products_stock_nonneg') THEN
-        ALTER TABLE products ADD CONSTRAINT chk_products_stock_nonneg CHECK (stock_quantity >= 0);
-    END IF;
-
-    -- orders.status must be one of a fixed set of lifecycle states
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_status') THEN
-        ALTER TABLE orders ADD CONSTRAINT chk_orders_status
-            CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'));
-    END IF;
-
-    -- orders.total_amount must be non-negative
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_orders_total_nonneg') THEN
-        ALTER TABLE orders ADD CONSTRAINT chk_orders_total_nonneg CHECK (total_amount >= 0);
+            ADD CONSTRAINT fk_order_items_item
+            FOREIGN KEY (item_id) REFERENCES items(item_id) ON DELETE RESTRICT;
     END IF;
 
     -- order_items.quantity must be positive
@@ -72,13 +88,9 @@ BEGIN
         ALTER TABLE order_items ADD CONSTRAINT chk_order_items_quantity_positive CHECK (quantity > 0);
     END IF;
 
-    -- order_items.unit_price / subtotal must be non-negative
+    -- order_items.unit_price must be non-negative
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_order_items_unit_price_nonneg') THEN
         ALTER TABLE order_items ADD CONSTRAINT chk_order_items_unit_price_nonneg CHECK (unit_price >= 0);
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_order_items_subtotal_nonneg') THEN
-        ALTER TABLE order_items ADD CONSTRAINT chk_order_items_subtotal_nonneg CHECK (subtotal >= 0);
     END IF;
 END
 $$;

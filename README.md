@@ -9,9 +9,24 @@ purposes:
    staging, and production, with persistent storage and a repeatable
    initialization process.
 
-Both share the same e-commerce domain (`customers`, `products`, `orders`,
-`order_items`) but are maintained as independent schemas — see
-[docs/database-design.md](docs/database-design.md) for the full design.
+Both share the same e-commerce domain (`customers`, `items`, `sessions`,
+`orders`, `order_items`) and the same table/column names as
+[shopassist](../shopassist)'s application-level schema, so
+`services/ecommerce_client.py` there can point at either one, unchanged —
+see [docs/database-design.md](docs/database-design.md) for the full design.
+
+The sample data models an **IISc alumni-shop capstone demo**: Indian
+customer names/addresses, an IISc merchandise catalog (t-shirts, mugs,
+bags, ...) priced in INR, and human-readable IDs throughout
+(`cust-1001`, `item-1001`, `ord-1001`, ...) instead of opaque
+auto-incrementing integers — easy to recognize in logs, a demo transcript,
+or a support conversation.
+
+Both `sqlite/scripts/` and `postgres/scripts/` follow the same two-command
+pattern — `create_db.py` for first-time setup, `reset_db.py` to wipe and
+reseed — and are plain Python, so they run the same way on Windows, macOS,
+and Linux with no shell scripts, no `psql` CLI, and (for SQLite) no extra
+packages to install.
 
 ## Repository structure
 
@@ -30,9 +45,9 @@ shopassist-database/
 │
 ├── postgres/                # production-grade database
 │   ├── schema/{schema.sql, constraints.sql, indexes.sql}
-│   ├── seeds/{seed_users.sql, seed_products.sql, seed_orders.sql}
+│   ├── seeds/{seed_customers.sql, seed_items.sql, seed_sessions.sql, seed_orders.sql}
 │   ├── migrations/          # versioned migrations (empty today, see README)
-│   ├── scripts/{init.sh, reset.sh}
+│   ├── scripts/{create_db.py, reset_db.py, db_common.py, requirements.txt}
 │   └── README.md
 │
 └── docs/
@@ -41,12 +56,13 @@ shopassist-database/
 
 ## Database schema overview
 
-| Table         | Purpose                                   | Key relationships                     |
-|---------------|--------------------------------------------|----------------------------------------|
-| `customers`   | People who place orders                    | referenced by `orders.customer_id`     |
-| `products`    | Product catalog                            | referenced by `order_items.product_id` |
-| `orders`      | Order headers (status, totals, addresses)  | belongs to a customer, has many items   |
-| `order_items` | Line items within an order                 | belongs to an order and a product       |
+| Table         | Purpose                                    | Key relationships                        |
+|---------------|---------------------------------------------|--------------------------------------------|
+| `customers`   | People who place orders                     | referenced by `sessions`/`orders.customer_id` |
+| `items`       | Product catalog (IISc merchandise, INR)     | referenced by `order_items.item_id`        |
+| `sessions`    | Customer browsing/chat sessions              | belongs to a customer, referenced by `orders.session_id` |
+| `orders`      | Order headers (status, totals, addresses)    | belongs to a customer and (optionally) a session, has many items |
+| `order_items` | Line items within an order                   | belongs to an order and an item            |
 
 Full ERD and design rationale: [docs/database-design.md](docs/database-design.md).
 
@@ -64,12 +80,16 @@ python3 sqlite/scripts/reset_db.py    # drop, recreate, and reseed at any time
 Both scripts use only Python's built-in `sqlite3` module — no external
 dependencies, no `sqlite3` CLI required. This produces
 `sqlite/database/shopassist.db`, built from `sqlite/schema/schema.sql` and
-populated with ~28 rows of sample data from `sqlite/seeds/seed.sql`:
+populated with sample data from `sqlite/seeds/seed.sql` (6 customers, 10
+IISc merchandise items, 6 sessions, 7 orders):
 
 ```python
 import sqlite3
 conn = sqlite3.connect("sqlite/database/shopassist.db")
 ```
+
+(Windows: use `python` instead of `python3` if that's what your install
+responds to.)
 
 Details: [sqlite/README.md](sqlite/README.md).
 
@@ -114,12 +134,13 @@ docker compose up -d
 On the **first** startup against an empty volume, the official `postgres:17`
 image automatically runs, in order:
 
-1. `postgres/schema/schema.sql` — creates `customers`, `products`, `orders`, `order_items`
+1. `postgres/schema/schema.sql` — creates enum types and `customers`, `items`, `sessions`, `orders`, `order_items`
 2. `postgres/schema/constraints.sql` — adds foreign keys, `UNIQUE`, and `CHECK` constraints
 3. `postgres/schema/indexes.sql` — adds performance indexes
-4. `postgres/seeds/seed_users.sql` — 10 sample customers
-5. `postgres/seeds/seed_products.sql` — 25 sample products
-6. `postgres/seeds/seed_orders.sql` — 15 sample orders with 22 order items
+4. `postgres/seeds/seed_customers.sql` — 10 sample customers (Indian names/addresses, `cust-1001` ...)
+5. `postgres/seeds/seed_items.sql` — 25 sample IISc merchandise items, priced in INR (`item-1001` ...)
+6. `postgres/seeds/seed_sessions.sql` — 10 sample sessions
+7. `postgres/seeds/seed_orders.sql` — 15 sample orders with 22 order items (`ord-1001` ...)
 
 Each script logs its own progress (`\echo`) to `docker compose logs postgres`,
 ending with `ShopAssist :: PostgreSQL initialization completed successfully.`
@@ -152,13 +173,24 @@ Deletes the local `.db` file and rebuilds it from schema + seed data.
 
 ### PostgreSQL
 
-Drop all tables and reload seed data, without touching the Docker volume
-itself:
+First time only, install the one dependency talking to Postgres from Python
+needs (see [postgres/scripts/requirements.txt](postgres/scripts/requirements.txt)):
 
 ```bash
-./postgres/scripts/reset.sh          # prompts for confirmation
-./postgres/scripts/reset.sh --yes    # non-interactive, e.g. CI/CD
+pip install -r postgres/scripts/requirements.txt
 ```
+
+Then, drop all tables and reload seed data, without touching the Docker
+volume itself:
+
+```bash
+python3 postgres/scripts/reset_db.py          # prompts for confirmation
+python3 postgres/scripts/reset_db.py --yes    # non-interactive, e.g. CI/CD
+```
+
+This works against the local `docker compose up -d` instance out of the box
+(same defaults as `docker-compose.yml`), or any other reachable Postgres
+server via `.env` / `POSTGRES_*` env vars.
 
 To wipe the data volume completely and start over from an empty database
 (rarely necessary — this deletes persisted data outright):
@@ -215,11 +247,13 @@ migrations grows.
 ## Non-functional notes
 
 - All PostgreSQL SQL scripts are idempotent (`IF NOT EXISTS` / guarded
-  `ALTER TABLE`), so they can be safely re-run.
+  `ALTER TABLE` / `ON CONFLICT DO NOTHING`), so `create_db.py` and the SQL
+  files themselves can be safely re-run.
 - Schema, constraints, and indexes are deliberately separated — see
   [docs/database-design.md](docs/database-design.md) for why.
 - `.env` is git-ignored; `.env.example` documents the required variables.
   Never commit real staging/production credentials.
-- Tested on macOS and Linux; Docker Compose commands are identical on
-  Windows via Docker Desktop (use PowerShell or WSL2 for the shell scripts,
-  or run the equivalent `docker compose exec` / `psql` commands directly).
+- Every script in this repo (`sqlite/scripts/*.py`, `postgres/scripts/*.py`)
+  is plain Python — no shell scripts, no OS-specific commands — so Windows
+  developers run the exact same commands as macOS/Linux. Docker Compose
+  itself is identical across platforms via Docker Desktop.

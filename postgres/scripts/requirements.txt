@@ -1,0 +1,10 @@
+# ShopAssist :: dependency for postgres/scripts/*.py
+#
+# The SQLite scripts (../../sqlite/scripts/) need nothing beyond the Python
+# standard library. Talking to PostgreSQL from Python does require a driver
+# - there's no way around that - so this is the one dependency the Postgres
+# side of this repo has:
+#
+#   pip install -r postgres/scripts/requirements.txt
+
+psycopg2-binary>=2.9

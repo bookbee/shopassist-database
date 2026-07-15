@@ -23,9 +23,10 @@ services:
       - ./postgres/schema/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./postgres/schema/constraints.sql:/docker-entrypoint-initdb.d/02_constraints.sql:ro
       - ./postgres/schema/indexes.sql:/docker-entrypoint-initdb.d/03_indexes.sql:ro
-      - ./postgres/seeds/seed_users.sql:/docker-entrypoint-initdb.d/04_seed_users.sql:ro
-      - ./postgres/seeds/seed_products.sql:/docker-entrypoint-initdb.d/05_seed_products.sql:ro
-      - ./postgres/seeds/seed_orders.sql:/docker-entrypoint-initdb.d/06_seed_orders.sql:ro
+      - ./postgres/seeds/seed_customers.sql:/docker-entrypoint-initdb.d/04_seed_customers.sql:ro
+      - ./postgres/seeds/seed_items.sql:/docker-entrypoint-initdb.d/05_seed_items.sql:ro
+      - ./postgres/seeds/seed_sessions.sql:/docker-entrypoint-initdb.d/06_seed_sessions.sql:ro
+      - ./postgres/seeds/seed_orders.sql:/docker-entrypoint-initdb.d/07_seed_orders.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopassist} -d ${POSTGRES_DB:-shopassist}"]
       interval: 10s

@@ -28,10 +28,10 @@ def build_db(db_file: Path = DB_FILE) -> None:
 
     conn = sqlite3.connect(db_file)
     try:
+        print(f"==> Applying {SCHEMA_FILE.name} ...")
         conn.executescript(SCHEMA_FILE.read_text())
-        print("==> Schema applied")
 
+        print(f"==> Applying {SEED_FILE.name} ...")
         conn.executescript(SEED_FILE.read_text())
-        print("==> Seed data loaded")
     finally:
         conn.close()
