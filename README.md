@@ -33,8 +33,7 @@ packages to install.
 ```
 shopassist-database/
 ├── docker-compose.yml       # PostgreSQL service, volume, network, health check
-├── .env                     # local dev config (git-ignored; see .env.example)
-├── .env.example             # template for .env
+├── .env                     # local dev config (git-ignored; see README below)
 │
 ├── sqlite/                  # local development database
 │   ├── database/            # generated shopassist.db lives here (git-ignored)
@@ -128,11 +127,8 @@ docker volume create shopassist-postgres-data
 ### 3. Configure environment variables
 
 A working `.env` already exists for local development (see below for its
-contents). For any other environment, copy the template and adjust:
-
-```bash
-cp .env.example .env
-```
+contents). For any other environment, create a `.env` in the repo root
+with these variables, adjusted as needed:
 
 ```env
 POSTGRES_DB=shopassist
@@ -269,8 +265,8 @@ migrations grows.
   files themselves can be safely re-run.
 - Schema, constraints, and indexes are deliberately separated — see
   [docs/database-design.md](docs/database-design.md) for why.
-- `.env` is git-ignored; `.env.example` documents the required variables.
-  Never commit real staging/production credentials.
+- `.env` is git-ignored; see [step 3 above](#3-configure-environment-variables)
+  for the required variables. Never commit real staging/production credentials.
 - Every script in this repo (`sqlite/scripts/*.py`, `postgres/scripts/*.py`)
   is plain Python — no shell scripts, no OS-specific commands — so Windows
   developers run the exact same commands as macOS/Linux. Docker Compose
