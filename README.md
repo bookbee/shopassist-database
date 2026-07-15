@@ -97,7 +97,25 @@ Details: [sqlite/README.md](sqlite/README.md).
 
 ## Running PostgreSQL with Docker Compose
 
-### 1. Create the external persistent volume (one-time)
+### 1. Install Docker Desktop (one-time)
+
+Docker Desktop bundles the Docker Engine and Docker Compose, and is the
+only prerequisite for this section — everything below assumes `docker` and
+`docker compose` are on your `PATH`.
+
+- macOS / Windows: install [Docker Desktop](https://www.docker.com/products/docker-desktop/),
+  launch it, and wait for it to report "running".
+- Linux: install [Docker Engine](https://docs.docker.com/engine/install/)
+  and the [Compose plugin](https://docs.docker.com/compose/install/linux/)
+  (Docker Desktop for Linux also works).
+
+Verify the install:
+
+```bash
+docker compose version
+```
+
+### 2. Create the external persistent volume (one-time)
 
 The Postgres data volume is declared `external` in `docker-compose.yml` so
 that `docker compose down` (even without `-v`) — and any container
@@ -107,7 +125,7 @@ recreation — never touches it. Create it once per host:
 docker volume create shopassist-postgres-data
 ```
 
-### 2. Configure environment variables
+### 3. Configure environment variables
 
 A working `.env` already exists for local development (see below for its
 contents). For any other environment, copy the template and adjust:
@@ -125,7 +143,7 @@ POSTGRES_HOST=localhost
 TZ=UTC
 ```
 
-### 3. Start PostgreSQL
+### 4. Start PostgreSQL
 
 ```bash
 docker compose up -d
@@ -150,7 +168,7 @@ initialization entirely (Postgres only runs
 `/docker-entrypoint-initdb.d/*` scripts once, against an empty data
 directory) and just start the server against the existing data.
 
-### 4. Verify it's healthy
+### 5. Verify it's healthy
 
 ```bash
 docker compose ps            # STATUS should show "healthy"
