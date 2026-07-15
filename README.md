@@ -226,7 +226,7 @@ docker compose up -d
 
 The Postgres container publishes its port to the host, so any application —
 including [shopassist](../shopassist) and
-[shopassist-streamlit](../shopassist-streamlit) — can connect using the
+[shopassist-client](../shopassist-client) — can connect using the
 same `.env` values:
 
 ```
