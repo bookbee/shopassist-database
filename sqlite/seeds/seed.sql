@@ -1,53 +1,76 @@
--- ShopAssist :: SQLite seed data
--- Lightweight sample dataset for local development (~28 rows total).
--- Safe to re-run after reset_db.sh recreates the schema.
+-- ShopAssist :: SQLite seed data (IISc alumni shop merchandise, INR pricing)
+-- Lightweight sample dataset for local development. Safe to re-run after
+-- reset_db.py recreates the schema.
+--
+-- customer_id / item_id / order_id are explicit, human-readable IDs
+-- (cust-1001, item-1001, ord-1001 ...), same idea as session_id already
+-- being a recognizable token instead of an opaque integer.
+--
+-- order_id ord-2001 / ord-2002 are seeded explicitly (outside the regular
+-- ord-1001..ord-1005 sequence) so they match the order IDs
+-- shopassist's main_simulation.py exercises out of the box.
 
 PRAGMA foreign_keys = ON;
 
 -- ---------------------------------------------------------------------------
 -- customers (6)
 -- ---------------------------------------------------------------------------
-INSERT INTO customers (id, first_name, last_name, email, phone, address_line1, city, state, postal_code, country) VALUES
-(1, 'Alice',  'Johnson', 'alice.johnson@example.com', '+1-206-555-0101', '221 Pine St',      'Seattle',   'WA', '98101', 'USA'),
-(2, 'Brian',  'Smith',   'brian.smith@example.com',   '+1-512-555-0102', '48 Congress Ave',  'Austin',    'TX', '73301', 'USA'),
-(3, 'Carla',  'Gomez',   'carla.gomez@example.com',   '+1-305-555-0103', '900 Ocean Dr',     'Miami',     'FL', '33139', 'USA'),
-(4, 'David',  'Lee',     'david.lee@example.com',     '+1-408-555-0104', '77 Tech Way',      'San Jose',  'CA', '95110', 'USA'),
-(5, 'Emma',   'Wilson',  'emma.wilson@example.com',   '+1-303-555-0105', '15 Mile High Cir', 'Denver',    'CO', '80202', 'USA'),
-(6, 'Farhan', 'Ahmed',   'farhan.ahmed@example.com',  '+1-312-555-0106', '5 Lakeshore Dr',   'Chicago',   'IL', '60601', 'USA');
+INSERT INTO customers (customer_id, first_name, last_name, email, phone, address_line1, city, state, postal_code, country) VALUES
+('cust-1001', 'Aarav', 'Sharma', 'aarav.sharma@example.com', '+91-98450-12345', '12 MG Road', 'Bengaluru', 'Karnataka', '560001', 'India'),
+('cust-1002', 'Ananya', 'Iyer', 'ananya.iyer@example.com', '+91-90030-22345', '45 Anna Salai', 'Chennai', 'Tamil Nadu', '600002', 'India'),
+('cust-1003', 'Rohan', 'Mehta', 'rohan.mehta@example.com', '+91-98200-33345', '7 Marine Drive', 'Mumbai', 'Maharashtra', '400002', 'India'),
+('cust-1004', 'Priya', 'Nair', 'priya.nair@example.com', '+91-94470-44345', '23 MG Road', 'Kochi', 'Kerala', '682016', 'India'),
+('cust-1005', 'Vikram', 'Reddy', 'vikram.reddy@example.com', '+91-90000-55345', '88 Banjara Hills', 'Hyderabad', 'Telangana', '500034', 'India'),
+('cust-1006', 'Sneha', 'Deshpande', 'sneha.deshpande@example.com', '+91-98220-66345', '15 FC Road', 'Pune', 'Maharashtra', '411004', 'India');
 
 -- ---------------------------------------------------------------------------
--- products (10)
+-- items (10)
 -- ---------------------------------------------------------------------------
-INSERT INTO products (id, sku, name, description, category, price, currency, stock_quantity) VALUES
-(1,  'SKU-1001', 'Wireless Bluetooth Headphones', 'Over-ear headphones with 30h battery life', 'Electronics', 79.99,  'USD', 150),
-(2,  'SKU-1002', 'Noise Cancelling Earbuds',      'True wireless earbuds with ANC',            'Electronics', 129.99, 'USD', 100),
-(3,  'SKU-1003', '4K Ultra HD Smart TV 55"',      '55-inch smart TV with HDR support',         'Electronics', 549.99, 'USD', 40),
-(4,  'SKU-1004', 'Portable Bluetooth Speaker',    'Water-resistant portable speaker',          'Electronics', 49.99,  'USD', 200),
-(5,  'SKU-1005', 'Mechanical Gaming Keyboard',    'RGB backlit mechanical keyboard',           'Electronics', 89.99,  'USD', 120),
-(6,  'SKU-1006', 'Wireless Ergonomic Mouse',      'Ergonomic mouse with adjustable DPI',       'Electronics', 34.99,  'USD', 180),
-(7,  'SKU-1007', '27" LED Monitor',               '27-inch 1440p IPS monitor',                 'Electronics', 219.99, 'USD', 60),
-(8,  'SKU-1008', 'USB-C Fast Charger 65W',        'Compact GaN fast charger',                  'Electronics', 24.99,  'USD', 300),
-(9,  'SKU-1009', 'Smartwatch Series 5',           'Fitness tracking smartwatch',               'Electronics', 199.99, 'USD', 90),
-(10, 'SKU-2001', 'Men''s Running Shoes',          'Lightweight breathable running shoes',      'Apparel',      69.99,  'USD', 150);
+INSERT INTO items (item_id, name, description, category, price, mrp, stock_quantity) VALUES
+('item-1001', 'IISc Crest T-Shirt', 'Cotton crew-neck tee with the institute crest embroidered on the chest', 'Apparel', 499.00, 558.88, 150),
+('item-1002', 'IISc Alumni Hoodie', 'Fleece-lined pullover hoodie with ''IISc Alumni'' print on the back', 'Apparel', 1299.00, 1454.88, 80),
+('item-1003', 'IISc Polo Shirt', 'Pique cotton polo with embroidered institute crest', 'Apparel', 799.00, 894.88, 120),
+('item-1004', 'IISc Baseball Cap', 'Adjustable cotton cap with embroidered logo', 'Apparel', 349.00, 390.88, 200),
+('item-1005', 'IISc Convocation Stole', 'Silk-blend stole in institute colours, worn at convocation', 'Apparel', 899.00, 1006.88, 60),
+('item-1006', 'IISc Ceramic Mug', '320ml ceramic mug printed with the institute crest', 'Drinkware', 299.00, 334.88, 250),
+('item-1007', 'IISc Steel Tumbler', 'Double-walled stainless steel tumbler, 500ml', 'Drinkware', 599.00, 670.88, 150),
+('item-1008', 'IISc Insulated Water Bottle', '750ml vacuum-insulated bottle, keeps drinks cold for 24h', 'Drinkware', 449.00, 502.88, 180),
+('item-1009', 'IISc Centenary Coffee Table Book', 'Hardbound pictorial history of the institute', 'Stationery', 1499.00, 1678.88, 40),
+('item-1010', 'IISc Hardbound Notebook', 'A5 ruled notebook with a debossed institute crest', 'Stationery', 249.00, 278.88, 300);
 
 -- ---------------------------------------------------------------------------
--- orders (5)
+-- sessions (6)
 -- ---------------------------------------------------------------------------
-INSERT INTO orders (id, order_number, customer_id, status, total_amount, currency, shipping_address, placed_at) VALUES
-(1, 'ORD-2026-0001', 1, 'delivered',  179.97, 'USD', '221 Pine St, Seattle, WA 98101, USA',   '2026-06-20 14:32:00'),
-(2, 'ORD-2026-0002', 2, 'shipped',     69.99, 'USD', '48 Congress Ave, Austin, TX 73301, USA', '2026-06-25 09:10:00'),
-(3, 'ORD-2026-0003', 3, 'pending',    199.99, 'USD', '900 Ocean Dr, Miami, FL 33139, USA',    '2026-07-01 17:45:00'),
-(4, 'ORD-2026-0004', 4, 'processing', 69.98,  'USD', '77 Tech Way, San Jose, CA 95110, USA',  '2026-07-05 11:05:00'),
-(5, 'ORD-2026-0005', 5, 'delivered',  154.98, 'USD', '15 Mile High Cir, Denver, CO 80202, USA','2026-07-08 08:20:00');
+INSERT INTO sessions (session_id, customer_id, device_type, status) VALUES
+('sess-1001', 'cust-1001', 'web', 'expired'),
+('sess-1002', 'cust-1002', 'mobile', 'expired'),
+('sess-1003', 'cust-1003', 'web', 'expired'),
+('sess-1004', 'cust-1004', 'desktop', 'expired'),
+('sess-1005', 'cust-1005', 'mobile', 'expired'),
+('sess-1006', 'cust-1006', 'web', 'active');
 
 -- ---------------------------------------------------------------------------
--- order_items (7)
+-- orders (7)
 -- ---------------------------------------------------------------------------
-INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, subtotal) VALUES
-(1, 1, 1, 1, 79.99,  79.99),
-(2, 1, 4, 2, 49.99,  99.98),
-(3, 2, 10, 1, 69.99, 69.99),
-(4, 3, 9, 1, 199.99, 199.99),
-(5, 4, 6, 2, 34.99,  69.98),
-(6, 5, 2, 1, 129.99, 129.99),
-(7, 5, 8, 1, 24.99,  24.99);
+INSERT INTO orders (order_id, customer_id, session_id, status, subtotal, discount, shipping_fee, total_amount, shipping_address, placed_at) VALUES
+('ord-1001', 'cust-1001', 'sess-1001', 'delivered', 1197.00, 0.00, 0.00, 1197.00, '12 MG Road, Bengaluru, Karnataka 560001, India', '2026-06-20 14:32:00'),
+('ord-1002', 'cust-1002', 'sess-1002', 'shipped', 249.00, 0.00, 49.00, 298.00, '45 Anna Salai, Chennai, Tamil Nadu 600002, India', '2026-06-25 09:10:00'),
+('ord-1003', 'cust-1003', 'sess-1003', 'pending', 1499.00, 0.00, 0.00, 1499.00, '7 Marine Drive, Mumbai, Maharashtra 400002, India', '2026-07-01 17:45:00'),
+('ord-1004', 'cust-1004', 'sess-1004', 'confirmed', 598.00, 0.00, 49.00, 647.00, '23 MG Road, Kochi, Kerala 682016, India', '2026-07-05 11:05:00'),
+('ord-1005', 'cust-1005', 'sess-1005', 'delivered', 1748.00, 0.00, 0.00, 1748.00, '88 Banjara Hills, Hyderabad, Telangana 500034, India', '2026-07-08 08:20:00'),
+('ord-2001', 'cust-1001', 'sess-1001', 'shipped', 799.00, 0.00, 49.00, 848.00, '12 MG Road, Bengaluru, Karnataka 560001, India', '2026-07-11 10:00:00'),
+('ord-2002', 'cust-1001', 'sess-1001', 'pending', 349.00, 0.00, 49.00, 398.00, '12 MG Road, Bengaluru, Karnataka 560001, India', '2026-07-13 16:15:00');
+
+-- ---------------------------------------------------------------------------
+-- order_items (9)
+-- ---------------------------------------------------------------------------
+INSERT INTO order_items (order_id, item_id, quantity, unit_price, line_total) VALUES
+('ord-1001', 'item-1001', 1, 499.00, 499.00),
+('ord-1001', 'item-1004', 2, 349.00, 698.00),
+('ord-1002', 'item-1010', 1, 249.00, 249.00),
+('ord-1003', 'item-1009', 1, 1499.00, 1499.00),
+('ord-1004', 'item-1006', 2, 299.00, 598.00),
+('ord-1005', 'item-1002', 1, 1299.00, 1299.00),
+('ord-1005', 'item-1008', 1, 449.00, 449.00),
+('ord-2001', 'item-1003', 1, 799.00, 799.00),
+('ord-2002', 'item-1004', 1, 349.00, 349.00);
