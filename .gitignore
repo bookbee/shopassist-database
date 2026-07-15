@@ -1,3 +1,12 @@
+# ShopAssist :: project-specific
+# Generated SQLite database (created by sqlite/scripts/create_db.py);
+# only schema.sql and seed.sql are the source of truth.
+sqlite/database/*.db
+sqlite/database/*.db-journal
+sqlite/database/*.db-wal
+sqlite/database/*.db-shm
+!sqlite/database/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
