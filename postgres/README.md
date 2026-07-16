@@ -1,7 +1,8 @@
 # ShopAssist PostgreSQL (production-grade)
 
-Dockerized PostgreSQL 17 for integration, staging, and production —
-persistent storage, health checks, modular SQL.
+Dockerized PostgreSQL 17 (with pgvector) for integration, staging, and
+production — persistent storage, health checks, modular SQL, and semantic
+search for `shopassist`'s RAG service.
 
 ## Layout
 
@@ -35,6 +36,11 @@ First startup against an empty volume auto-runs schema, constraints,
 indexes, and seeds via `/docker-entrypoint-initdb.d/`. Reruns skip init and
 reuse existing data. `create_db.py` isn't needed here — it's for everything
 Compose doesn't cover, below.
+
+`docker-compose.yml`'s image is `pgvector/pgvector:pg17`, not the bare
+`postgres:17` — the pgvector extension needs to actually be installed for
+`document_chunks` (see **Schema** below); this is the official image the
+pgvector project maintains for exactly this, not a custom Dockerfile.
 
 ## Against an existing Postgres server (no Docker)
 
@@ -78,7 +84,10 @@ top-level README's reset section.
 
 ## Schema
 
-Five tables: `customers`, `items`, `sessions`, `orders`, `order_items`. IDs
-are human-readable business keys (`cust-1001`, `item-1001`, `ord-1001`),
-supplied explicitly in seed data. Full design:
+Five e-commerce tables: `customers`, `items`, `sessions`, `orders`,
+`order_items`. IDs are human-readable business keys (`cust-1001`,
+`item-1001`, `ord-1001`), supplied explicitly in seed data. Plus a sixth,
+`document_chunks` — pgvector-backed semantic search storage for
+`shopassist`'s RAG service, Postgres-only, no seed data (populated by
+`shopassist`'s own ingestion pipeline, not this repo). Full design:
 [../docs/database-design.md](../docs/database-design.md).

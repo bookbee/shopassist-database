@@ -3,6 +3,8 @@
 Database layer for ShopAssist. SQLite for local dev, PostgreSQL (Docker) for
 everything else — same schema, same table/column names, so
 `shopassist`'s `services/ecommerce_client.py` points at either unchanged.
+PostgreSQL also runs pgvector, backing `shopassist`'s RAG semantic search
+(`document_chunks` — Postgres-only, see below).
 Full design/ERD: [docs/database-design.md](docs/database-design.md).
 
 Sample data: IISc alumni-shop demo — Indian names/addresses, INR pricing,
@@ -39,13 +41,14 @@ Python, no shell scripts: identical commands on macOS/Linux/Windows.
 
 ## Schema
 
-| Table         | Purpose                 | Key relationship                                         |
-|---------------|-------------------------|----------------------------------------------------------|
-| `customers`   | People who place orders | referenced by `sessions`, `orders.customer_id`           |
-| `items`       | Product catalog (INR)   | referenced by `order_items.item_id`                      |
-| `sessions`    | Browsing/chat sessions  | belongs to a customer; referenced by `orders.session_id` |
-| `orders`      | Order headers           | belongs to a customer + optional session, has many items |
-| `order_items` | Order line items        | belongs to an order and an item                          |
+| Table             | Purpose                             | Key relationship                                         |
+|-------------------|-------------------------------------|----------------------------------------------------------|
+| `customers`       | People who place orders             | referenced by `sessions`, `orders.customer_id`           |
+| `items`           | Product catalog (INR)               | referenced by `order_items.item_id`                      |
+| `sessions`        | Browsing/chat sessions              | belongs to a customer; referenced by `orders.session_id` |
+| `orders`          | Order headers                       | belongs to a customer + optional session, has many items |
+| `order_items`     | Order line items                    | belongs to an order and an item                          |
+| `document_chunks` | RAG semantic search (Postgres-only) | loosely referenced via JSONB `metadata`, no FK           |
 
 ## SQLite — local dev
 
@@ -86,6 +89,10 @@ First run against an empty volume applies, in order: `schema.sql` →
 `constraints.sql` → `indexes.sql` → seeds (`customers` → `items` →
 `sessions` → `orders`). Reruns skip init and reuse existing data. Progress:
 `docker compose logs postgres`.
+
+Runs `pgvector/pgvector:pg17`, not the bare `postgres:17` image — needed
+for `document_chunks`' semantic search (`shopassist`'s RAG service). See
+[docs/database-design.md](docs/database-design.md#rag-semantic-search-document_chunks-postgresql-only).
 
 Running against a non-Docker Postgres server (staging/production): details:
 [postgres/README.md](postgres/README.md).
@@ -132,7 +139,8 @@ SQLite: point at `sqlite/database/shopassist.db` directly.
 
 Schema changes against a database that already holds data go in
 `postgres/migrations/` as numbered, idempotent SQL — not as edits to
-`postgres/schema/*.sql`, which is the fresh-install baseline. See
+`postgres/schema/*.sql`, which is the fresh-install baseline.
+`0001_add_document_chunks_for_rag.sql` is the first one. See
 [postgres/migrations/README.md](postgres/migrations/README.md).
 
 ## Notes

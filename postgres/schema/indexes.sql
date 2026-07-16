@@ -22,4 +22,12 @@ CREATE INDEX IF NOT EXISTS idx_orders_placed_at       ON orders(placed_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id   ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_item_id    ON order_items(item_id);
 
+CREATE INDEX IF NOT EXISTS idx_document_chunks_source_type ON document_chunks(source_type);
+
+-- HNSW over IVFFlat: no list-count "training" step needed, good recall/
+-- latency out of the box at this project's scale. Cosine ops since
+-- nomic-embed-text is designed to be compared by cosine similarity.
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding
+    ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
 \echo 'ShopAssist :: indexes.sql applied.'

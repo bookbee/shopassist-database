@@ -29,6 +29,11 @@
 SET client_encoding = 'UTF8';
 SET timezone = 'UTC';
 
+-- Needed for document_chunks' embedding column below. Requires the
+-- pgvector/pgvector Docker image (see docker-compose.yml) - the bare
+-- postgres image doesn't bundle this extension.
+CREATE EXTENSION IF NOT EXISTS vector;
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status_enum') THEN
@@ -132,5 +137,32 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 
 COMMENT ON TABLE order_items IS 'Line items belonging to an order (order-to-item join with quantity/price).';
+
+-- ---------------------------------------------------------------------------
+-- document_chunks
+-- ---------------------------------------------------------------------------
+-- Semantic search storage for shopassist's RAG service (services/rag.py::
+-- PgVectorRAGService) - chunked product/policy/conversation text plus its
+-- embedding, so a chat query can retrieve the most relevant chunks by
+-- meaning instead of keyword match. Postgres-only: there's no SQLite
+-- equivalent (no vector extension there), see docs/database-design.md.
+--
+-- doc_id is VARCHAR rather than this schema's usual human-readable
+-- business-key style (cust-1001 etc.) - it matches shopassist's
+-- ChunkedDocument.doc_id field 1:1 (app-generated slugs like
+-- "prod_chunk_ITEM_001"), a deliberate exception so the app layer needs no
+-- ID translation at the RAG boundary.
+CREATE TABLE IF NOT EXISTS document_chunks (
+    doc_id          VARCHAR(255)  PRIMARY KEY,
+    content         TEXT          NOT NULL,
+    embedding       VECTOR(768)   NOT NULL,
+    source_type     VARCHAR(50)   NOT NULL,
+    metadata        JSONB         NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE document_chunks IS 'Chunked text + embeddings for RAG semantic search (product catalog, support policy, conversation history).';
+COMMENT ON COLUMN document_chunks.embedding IS 'nomic-embed-text output dimension (768) via Ollama - see shopassist-model/config/generative.yaml.';
 
 \echo 'ShopAssist :: schema.sql applied.'

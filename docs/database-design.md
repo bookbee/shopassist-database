@@ -2,8 +2,10 @@
 
 ## Entities and relationships
 
-Five entities model the ShopAssist e-commerce domain 
-either the SQLite or the PostgreSQL database here:
+Five entities model the ShopAssist e-commerce domain, shared by either the
+SQLite or the PostgreSQL database here. A sixth, `document_chunks`, exists
+**Postgres-only** for RAG semantic search — see **RAG semantic search:
+document_chunks** below.
 
 ```
 customers (1) ─┬─< (N) sessions
@@ -103,6 +105,53 @@ column list; SQLite stores it as a plain column computed at insert time
   referenced by historical order items cannot be hard-deleted; deactivate it
   via `items.is_active = false` instead.
 
+## RAG semantic search: `document_chunks` (PostgreSQL-only)
+
+```text
+document_chunks {
+    varchar     doc_id PK
+    text        content
+    vector(768) embedding
+    varchar     source_type
+    jsonb       metadata
+    timestamptz created_at
+    timestamptz updated_at
+}
+```
+
+Deliberately outside the entity diagram above — it has no foreign keys to
+`customers`/`items`/`orders`, and isn't meant to. A chunk about a product
+carries `{"product_id": "item-1001"}` in `metadata` as a loose, JSON-level
+reference, not an enforced `item_id` FK, because chunks (support-policy
+text, past conversation excerpts) don't all originate from a row in
+another table — forcing a real FK would mean nullable references to three
+different tables, which is worse than an untyped one.
+
+- **`doc_id VARCHAR(255)` instead of this schema's usual human-readable
+  business key** (`cust-1001` style) — it matches `shopassist`'s
+  `ChunkedDocument.doc_id` field 1:1 (app-generated slugs like
+  `prod_chunk_item-1001`), a deliberate exception so the RAG boundary
+  needs no ID translation between the app and this table.
+- **`VECTOR(768)`** — `nomic-embed-text`'s actual output dimension (see
+  `shopassist-model/config/generative.yaml`'s `embedding` role). pgvector
+  enforces this at the type level; a mismatched embedding fails on
+  `INSERT`, not silently.
+- **HNSW index, cosine ops** (`idx_document_chunks_embedding` in
+  `indexes.sql`) rather than IVFFlat — HNSW needs no list-count "training"
+  step to perform well, a better default at this project's scale. Cosine
+  distance (`<=>`) matches how `nomic-embed-text` is designed to be
+  compared.
+- **`JSONB` metadata** rather than a fixed set of nullable FK columns —
+  chunks come from genuinely different source shapes (`product_catalog`,
+  `customer_support_policy`, `customer_support_conversation`, per
+  `source_type`), each carrying different identifying fields.
+- **Postgres-only, no SQLite equivalent.** SQLite has no vector extension,
+  and this project's own convention already treats SQLite as disposable
+  local-dev data (see "Why schema, constraints, and indexes are separate
+  files" below and `sqlite/README.md`) — `shopassist`'s RAG service falls
+  back to an in-memory mock when `DATABASE_URL` isn't Postgres, rather
+  than reimplementing similarity search in SQLite.
+
 ## Why schema, constraints, and indexes are separate files (PostgreSQL)
 
 - **`schema.sql`** — table shape: columns, types, defaults, primary keys.
@@ -152,8 +201,12 @@ path, and there's no independent lifecycle to protect there.
 ## Future migration strategy
 
 Today, `postgres/schema/*.sql` is the single source of truth for a
-brand-new database, and `postgres/migrations/` exists but is empty (see
-[postgres/migrations/README.md](../postgres/migrations/README.md)).
+brand-new database. `postgres/migrations/` holds its first entry,
+`0001_add_document_chunks_for_rag.sql` (see
+[postgres/migrations/README.md](../postgres/migrations/README.md)) — the
+baseline `schema.sql`/`indexes.sql` files already reflect that same
+change, so a fresh install and a migrated one end up identical, per the
+convention below.
 
 As the schema evolves on databases that already hold data, add numbered
 migration files (`0001_description.sql`, `0002_description.sql`, ...) to

@@ -1,6 +1,11 @@
 services:
   postgres:
-    image: postgres:17
+    # pgvector/pgvector, not the bare postgres image — Postgres 17 with the
+    # pgvector extension pre-built, needed for document_chunks' semantic
+    # search (see postgres/migrations/0001_add_document_chunks_for_rag.sql
+    # and docs/database-design.md). Official image maintained by the
+    # pgvector project, not a custom Dockerfile.
+    image: pgvector/pgvector:pg17
     container_name: shopassist-postgres
     restart: unless-stopped
     environment:
