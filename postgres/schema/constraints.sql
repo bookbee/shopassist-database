@@ -25,11 +25,11 @@ BEGIN
         ALTER TABLE items ADD CONSTRAINT chk_items_mrp_gte_price CHECK (mrp IS NULL OR mrp >= price);
     END IF;
 
-    -- sessions.customer_id -> customers.customer_id
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sessions_customer') THEN
+    -- sessions.user_id -> customers.user_id
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sessions_user') THEN
         ALTER TABLE sessions
-            ADD CONSTRAINT fk_sessions_customer
-            FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE SET NULL;
+            ADD CONSTRAINT fk_sessions_user
+            FOREIGN KEY (user_id) REFERENCES customers(user_id) ON DELETE SET NULL;
     END IF;
 
     -- sessions.ended_at cannot precede sessions.started_at
@@ -38,11 +38,11 @@ BEGIN
             CHECK (ended_at IS NULL OR ended_at >= started_at);
     END IF;
 
-    -- orders.customer_id -> customers.customer_id
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN
+    -- orders.user_id -> customers.user_id
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_user') THEN
         ALTER TABLE orders
-            ADD CONSTRAINT fk_orders_customer
-            FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE RESTRICT;
+            ADD CONSTRAINT fk_orders_user
+            FOREIGN KEY (user_id) REFERENCES customers(user_id) ON DELETE RESTRICT;
     END IF;
 
     -- orders.session_id -> sessions.session_id

@@ -7,18 +7,20 @@
 -- concerns separate lets each be re-run, reviewed, or migrated
 -- independently.
 --
--- Table and column names deliberately match shopassist's application-level
--- schema (customer_id / item_id / session_id / order_id, not a generic
--- "id") so services/ecommerce_client.py's SQL runs unchanged against this
--- database - see docs/database-design.md.
+-- Table and column names match shopassist's own db/schema_sqlite.sql
+-- exactly (user_id / item_id / session_id / order_id, not a generic "id"),
+-- so clients/ecommerce_api_client.py's SQL runs unchanged once DATABASE_URL
+-- points here instead of shopassist's local SQLite file - see
+-- README.md.
 --
--- customer_id / item_id / order_id are human-readable business keys
--- (cust-1001, item-1001, ord-1001 - see seeds/) rather than
--- database-generated integers, for the same reason session_id already
--- looked like an identifiable token: they're easy to recognize, log, and
--- read back in a demo. That means they're supplied explicitly on INSERT,
--- same as session_id already was - there's no IDENTITY/SERIAL here to
--- override.
+-- user_id is shopassist's own naming choice - the identifier sent by
+-- shopassist-client at login, used end to end (see shopassist's
+-- db/README.md). user_id / item_id / session_id / order_id are all
+-- human-readable business keys (alum-1001, item-1001, sess-1001, ord-1001 -
+-- see seeds/) rather than database-generated integers or UUIDs: easy to
+-- recognize, log, and read back in a demo. That means they're supplied
+-- explicitly on INSERT - there's no IDENTITY/SERIAL/gen_random_uuid() here
+-- to override.
 --
 -- Idempotent: safe to re-run. CREATE TABLE uses IF NOT EXISTS; enum types
 -- are guarded by a DO block since PostgreSQL has no CREATE TYPE IF NOT
@@ -27,7 +29,10 @@
 \echo 'ShopAssist :: applying schema.sql ...'
 
 SET client_encoding = 'UTF8';
-SET timezone = 'UTC';
+-- IST (UTC+5:30) - matches TZ/PGTZ in docker-compose.yml/.env. Only scopes
+-- this init session; the container's PGTZ env var is what sets Postgres's
+-- actual default `timezone` GUC for every other session.
+SET timezone = 'Asia/Kolkata';
 
 -- Needed for document_chunks' embedding column below. Requires the
 -- pgvector/pgvector Docker image (see docker-compose.yml) - the bare
@@ -52,7 +57,7 @@ $$;
 -- customers
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS customers (
-    customer_id     VARCHAR(20)   PRIMARY KEY,
+    user_id         VARCHAR(20)   PRIMARY KEY,
     first_name      VARCHAR(100)  NOT NULL,
     last_name       VARCHAR(100)  NOT NULL,
     email           VARCHAR(255)  NOT NULL,
@@ -92,8 +97,8 @@ COMMENT ON TABLE items IS 'Product catalog available for purchase.';
 -- sessions
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS sessions (
-    session_id      UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id     VARCHAR(20),
+    session_id      VARCHAR(20)   PRIMARY KEY,
+    user_id         VARCHAR(20),
     ip_address      INET,
     user_agent      TEXT,
     device_type     VARCHAR(50),
@@ -110,8 +115,8 @@ COMMENT ON TABLE sessions IS 'Customer browsing/chat sessions (web, app, or supp
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
     order_id        VARCHAR(20)   PRIMARY KEY,
-    customer_id     VARCHAR(20)   NOT NULL,
-    session_id      UUID,
+    user_id         VARCHAR(20)   NOT NULL,
+    session_id      VARCHAR(20),
     status          order_status_enum NOT NULL DEFAULT 'pending',
     subtotal        NUMERIC(12,2) NOT NULL DEFAULT 0,
     discount        NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -141,17 +146,23 @@ COMMENT ON TABLE order_items IS 'Line items belonging to an order (order-to-item
 -- ---------------------------------------------------------------------------
 -- document_chunks
 -- ---------------------------------------------------------------------------
--- Semantic search storage for shopassist's RAG service (services/rag.py::
--- PgVectorRAGService) - chunked product/policy/conversation text plus its
--- embedding, so a chat query can retrieve the most relevant chunks by
--- meaning instead of keyword match. Postgres-only: there's no SQLite
--- equivalent (no vector extension there), see docs/database-design.md.
+-- Backing store for PgVectorRAGService, shopassist's RAG semantic search
+-- service - chunked product/policy/conversation text plus its embedding,
+-- so a chat query can retrieve the most relevant chunks by meaning
+-- instead of keyword match. Postgres-only: there's no SQLite equivalent,
+-- see README.md.
+--
+-- Before inserting into this table, read the README's RAG section - the
+-- embedding column below requires a real, fixed-dimension vector on every
+-- INSERT (pgvector rejects anything else outright), so the embedding
+-- model must be wired up correctly first.
 --
 -- doc_id is VARCHAR rather than this schema's usual human-readable
--- business-key style (cust-1001 etc.) - it matches shopassist's
+-- business-key style (alum-1001 etc.) - it matches shopassist's
 -- ChunkedDocument.doc_id field 1:1 (app-generated slugs like
--- "prod_chunk_ITEM_001"), a deliberate exception so the app layer needs no
--- ID translation at the RAG boundary.
+-- "prod_chunk_<product_id>" / "conv_chunk_<conv_id>_<chunk_idx>", see
+-- services/data_pipeline.py), a deliberate exception so the app layer
+-- needs no ID translation at the RAG boundary.
 CREATE TABLE IF NOT EXISTS document_chunks (
     doc_id          VARCHAR(255)  PRIMARY KEY,
     content         TEXT          NOT NULL,

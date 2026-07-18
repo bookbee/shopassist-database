@@ -1,9 +1,8 @@
 """Shared helpers for ShopAssist PostgreSQL management scripts.
 
-Needs psycopg2 (pip install -r postgres/scripts/requirements.txt) - the one
-non-stdlib dependency on this side of the repo, unavoidable since Python has
-no built-in PostgreSQL client. See ../../sqlite/scripts/db_common.py for the
-zero-dependency SQLite equivalent.
+Needs psycopg2 (pip install -r requirements.txt, from the repo root) - the
+one dependency every script here needs, unavoidable since Python has no
+built-in PostgreSQL client.
 """
 
 from __future__ import annotations
@@ -19,8 +18,8 @@ try:
 except ImportError:
     print(
         "Missing dependency: psycopg2\n\n"
-        "Install it with:\n"
-        "    pip install -r postgres/scripts/requirements.txt\n",
+        "Install it with (from the repo root):\n"
+        "    pip install -r requirements.txt\n",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -50,13 +49,23 @@ DEFAULTS = {
     "POSTGRES_DB": "shopassist",
     "POSTGRES_USER": "shopassist",
     "POSTGRES_PASSWORD": "shopassist123",
+    # Same variable names as shopassist's own .env.example, so a developer
+    # running both repos locally only sets these once mentally - not read
+    # from shopassist's .env directly (separate repo, separate process).
+    "OLLAMA_API_BASE_URL": "http://localhost:11434",
+    "OLLAMA_EMBEDDING_MODEL": "nomic-embed-text",
 }
 
 
 def _load_env_file(env_path: Path) -> None:
-    """Minimal KEY=VALUE .env parser (stdlib only - mirrors what `source
-    .env` did for the old shell scripts, including that .env values win
-    over anything already set in the shell environment)."""
+    """Minimal KEY=VALUE .env parser (stdlib only). A real environment
+    variable - one already set before this process started, e.g. by
+    `docker compose`'s `environment:` block, or an explicit `export` -
+    always wins over the .env file; this only fills in what isn't already
+    set. That's what lets rag-init's compose service point POSTGRES_HOST
+    at the `postgres` service by name while this same .env file (baked in
+    for bare local runs, where POSTGRES_HOST=localhost is correct) sits
+    right next to it unmodified."""
     if not env_path.exists():
         return
     for line in env_path.read_text().splitlines():
@@ -64,7 +73,7 @@ def _load_env_file(env_path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ[key.strip()] = value.strip()
+        os.environ.setdefault(key.strip(), value.strip())
 
 
 def get_config() -> dict:
@@ -78,6 +87,18 @@ def get_config() -> dict:
         "dbname": os.environ.get("POSTGRES_DB", DEFAULTS["POSTGRES_DB"]),
         "user": os.environ.get("POSTGRES_USER", DEFAULTS["POSTGRES_USER"]),
         "password": os.environ.get("POSTGRES_PASSWORD", DEFAULTS["POSTGRES_PASSWORD"]),
+    }
+
+
+def get_ollama_config() -> dict:
+    """Ollama connection settings for init_vector_store.py, resolved the
+    same way get_config() resolves Postgres settings: .env file, falling
+    back to defaults that match a local `ollama serve` with
+    nomic-embed-text already pulled (`ollama pull nomic-embed-text`)."""
+    _load_env_file(ENV_FILE)
+    return {
+        "base_url": os.environ.get("OLLAMA_API_BASE_URL", DEFAULTS["OLLAMA_API_BASE_URL"]),
+        "embedding_model": os.environ.get("OLLAMA_EMBEDDING_MODEL", DEFAULTS["OLLAMA_EMBEDDING_MODEL"]),
     }
 
 
@@ -99,7 +120,7 @@ def connect(config: dict, dbname: str | None = None):
             f"\nCould not connect to PostgreSQL at "
             f"{config['host']}:{config['port']} as '{config['user']}'.\n"
             f"  - Is it running? Try: docker compose up -d\n"
-            f"  - Check postgres/scripts/requirements.txt is installed.\n"
+            f"  - Check the repo root's requirements.txt is installed.\n"
             f"  - Check .env (or POSTGRES_* env vars) match docker-compose.yml.\n\n"
             f"Original error: {exc}",
             file=sys.stderr,
