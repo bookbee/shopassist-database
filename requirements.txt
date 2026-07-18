@@ -1,0 +1,19 @@
+# ShopAssist :: dependencies for this repo's Python tooling
+# (postgres/scripts/*.py). One place for all of it - simpler than a
+# per-script requirements file, and small enough here that pulling in one
+# extra package for a script you're not running costs nothing.
+#
+#   pip install -r requirements.txt
+
+# create_db.py / reset_db.py / db_common.py - the one dependency needed to
+# talk to PostgreSQL from Python at all (there's no way around a driver).
+psycopg2-binary>=2.9
+
+# init_vector_store.py - chunks documents under postgres/rag_sources/ and
+# embeds them into document_chunks (see that script + README's RAG
+# section). Ollama's embeddings endpoint is OpenAI-compatible, so this
+# reuses the same client library shopassist itself uses for LLM calls,
+# just pointed at nomic-embed-text instead of a chat model.
+openai>=1.50
+pypdf>=4.0        # .pdf text extraction
+openpyxl>=3.1     # .xlsx text extraction (.csv needs only the stdlib csv module)

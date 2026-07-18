@@ -1,14 +1,21 @@
 services:
   postgres:
-    image: postgres:17
+    # pgvector/pgvector, not the bare postgres image — Postgres 17 with the
+    # pgvector extension pre-built, needed for document_chunks' semantic
+    # search (see postgres/schema/schema.sql and README.md). Official image
+    # maintained by the pgvector project, not a custom Dockerfile.
+    image: pgvector/pgvector:pg17
     container_name: shopassist-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-shopassist}
       POSTGRES_USER: ${POSTGRES_USER:-shopassist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopassist123}
-      TZ: ${TZ:-UTC}
-      PGTZ: ${TZ:-UTC}
+      # Asia/Kolkata = IST (UTC+5:30). TZ sets the container OS timezone;
+      # PGTZ sets Postgres's own default `timezone` GUC - both need it,
+      # they're read independently.
+      TZ: ${TZ:-Asia/Kolkata}
+      PGTZ: ${TZ:-Asia/Kolkata}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -33,6 +40,76 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - shopassist-network
+
+  # --- rag-init - optional, one-shot vector-store bootstrap ------------------
+  # NOT part of the default `docker compose up -d` - only starts when the
+  # "rag" profile is explicitly requested, so hosting just the relational
+  # database (the common case) never depends on Ollama being reachable:
+  #
+  #   docker compose --profile rag up rag-init
+  #
+  # Runs postgres/scripts/init_vector_store.py once against the `postgres`
+  # service above, chunking + embedding everything under
+  # postgres/rag_sources/ into document_chunks - see README.md's RAG
+  # section. No custom image: installs requirements.txt into the official
+  # python:3.12-slim image at container start, same dependency list a
+  # developer running the script directly would install.
+  #
+  # Additive by default (upserts, never deletes) - set RAG_INIT_TRUNCATE=true
+  # to wipe document_chunks first instead, so the result matches
+  # rag_sources/ exactly rather than accumulating past runs.
+  #
+  # Needs Ollama reachable with nomic-embed-text already pulled
+  # (`ollama pull nomic-embed-text`). Defaults to a host-installed Ollama
+  # via host.docker.internal (extra_hosts below makes that resolve on
+  # Linux too, not just Docker Desktop). Hardcoded, not
+  # ${OLLAMA_API_BASE_URL:-...} substitution - deliberately: .env's own
+  # OLLAMA_API_BASE_URL=http://localhost:11434 is correct for running
+  # init_vector_store.py directly on the host, but Compose reads that same
+  # .env for substitution here too, and "localhost" means something
+  # different inside this container (itself, not the host) - a real
+  # failure mode this project hit and fixed. Override by adding a
+  # docker-compose.override.yml with this service's own
+  # `environment.OLLAMA_API_BASE_URL` if Ollama runs elsewhere instead -
+  # e.g. `http://ollama:11434` when this repo runs as part of
+  # shopassist-devops's platform-wide compose, with this service also
+  # joining that network.
+  rag-init:
+    image: python:3.12-slim
+    container_name: shopassist-rag-init
+    profiles: ["rag"]
+    working_dir: /app
+    volumes:
+      - ./postgres:/app/postgres:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+    command:
+      - sh
+      - -c
+      - pip install --no-cache-dir --quiet -r requirements.txt && python postgres/scripts/init_vector_store.py
+    environment:
+      # Always "postgres" (the service name above), never .env's
+      # POSTGRES_HOST=localhost default - real env vars set here win over
+      # .env, see db_common.py::_load_env_file. Same reasoning as
+      # OLLAMA_API_BASE_URL below.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-shopassist}
+      POSTGRES_USER: ${POSTGRES_USER:-shopassist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopassist123}
+      OLLAMA_API_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # Set to true for a clean resync instead of an additive upsert - see
+      # init_vector_store.py --truncate. e.g.:
+      #   RAG_INIT_TRUNCATE=true docker compose --profile rag up rag-init
+      RAG_INIT_TRUNCATE: ${RAG_INIT_TRUNCATE:-false}
+      TZ: ${TZ:-Asia/Kolkata}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - shopassist-network
 
