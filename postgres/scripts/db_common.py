@@ -31,11 +31,16 @@ ENV_FILE = ROOT_DIR / ".env"
 SCHEMA_FILE = POSTGRES_DIR / "schema" / "schema.sql"
 CONSTRAINTS_FILE = POSTGRES_DIR / "schema" / "constraints.sql"
 INDEXES_FILE = POSTGRES_DIR / "schema" / "indexes.sql"
+# Order matters - each file's rows reference the ones before it. Kept as an
+# explicit list rather than a sorted glob so that dependency order is stated
+# outright, and must stay in step with docker-compose.yml's numbered
+# /docker-entrypoint-initdb.d/ mounts (04_ ... 08_).
 SEED_FILES = [
     POSTGRES_DIR / "seeds" / "seed_customers.sql",
     POSTGRES_DIR / "seeds" / "seed_items.sql",
     POSTGRES_DIR / "seeds" / "seed_sessions.sql",
     POSTGRES_DIR / "seeds" / "seed_orders.sql",
+    POSTGRES_DIR / "seeds" / "seed_item_reviews.sql",
 ]
 
 # psql-only meta-commands (\echo, \c, ...) that appear in the .sql files for
@@ -49,9 +54,10 @@ DEFAULTS = {
     "POSTGRES_DB": "shopassist",
     "POSTGRES_USER": "shopassist",
     "POSTGRES_PASSWORD": "shopassist123",
-    # Same variable names as shopassist's own .env.example, so a developer
-    # running both repos locally only sets these once mentally - not read
-    # from shopassist's .env directly (separate repo, separate process).
+    # Same variable names as shopassist-service's own .env.example, so a
+    # developer running both repos locally only sets these once mentally -
+    # not read from that project's .env directly (separate repo, separate
+    # process).
     "OLLAMA_API_BASE_URL": "http://localhost:11434",
     "OLLAMA_EMBEDDING_MODEL": "nomic-embed-text",
 }

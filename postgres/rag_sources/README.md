@@ -91,7 +91,7 @@ against it.
 
 ## PII
 
-Mask PII before it lands here, the same way `shopassist`'s own ingestion
+Mask PII before it lands here, the same way `shopassist-service`'s own ingestion
 (`services/pii_masker.py`) does before anything reaches an embedding call.
 Don't drop real, unmasked customer conversations or any file containing
 real names/emails/phone numbers into `customer_support_conversation/` —

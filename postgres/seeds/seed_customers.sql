@@ -4,10 +4,9 @@
 -- deterministically, and so a developer can recognize a user_id at a
 -- glance instead of chasing an opaque integer.
 --
--- Matches shopassist's own db/seed_sqlite.sql 1:1 (same IDs, same rows) so
--- switching DATABASE_URL from shopassist's local SQLite file to this
--- Postgres instance resolves the same seeded customers - see
--- ../../README.md.
+-- These are the user_ids shopassist-service resolves against: type one of
+-- them as the "User ID" at shopassist-client's login to load that
+-- customer's orders and history - see ../../README.md.
 
 \echo 'ShopAssist :: loading seed_customers.sql (customers) ...'
 

@@ -2,9 +2,8 @@
 -- One session per customer, explicit human-readable IDs (sess-1001 ...) so
 -- seed_orders.sql can link an order back to the session it was placed in.
 --
--- Matches shopassist's own db/seed_sqlite.sql 1:1 (same IDs, same rows,
--- ip_address/user_agent left unset the same way) - see
--- ../../README.md.
+-- ip_address/user_agent are left unset - shopassist-service populates them
+-- from live request context, not from seed data. See ../../README.md.
 
 \echo 'ShopAssist :: loading seed_sessions.sql (sessions) ...'
 

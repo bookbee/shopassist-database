@@ -5,12 +5,13 @@
 -- alum-1001 / item-1001 IDs. subtotal/shipping_fee/total_amount (INR) are
 -- derived from the line items below (free shipping above a Rs 999
 -- subtotal, else a flat Rs 49 fee) and kept in sync by hand for a clean,
--- referentially-correct sample dataset. order_items.line_total is a
--- GENERATED ALWAYS column, so it is never part of the INSERT - Postgres
--- computes it from quantity * unit_price.
+-- referentially-correct sample dataset. order_items.line_total IS part of
+-- the INSERT below: it's a plain stored column, not GENERATED ALWAYS -
+-- shopassist-service writes it explicitly on every order it creates, and
+-- Postgres rejects an INSERT that supplies a value for a generated column.
+-- See ../schema/schema.sql's note on order_items.
 --
--- Matches shopassist's own db/seed_sqlite.sql 1:1 (same IDs, same rows,
--- same totals) - see ../../README.md. Timestamps carry an
+-- See ../../README.md. Timestamps carry an
 -- explicit +05:30 (IST) offset since each /docker-entrypoint-initdb.d/
 -- file runs in its own psql session, so schema.sql's
 -- `SET timezone = 'Asia/Kolkata'` doesn't carry over to this file's
@@ -49,46 +50,45 @@ INSERT INTO orders (order_id, user_id, session_id, status, subtotal, discount, s
 ('ord-1025', 'alum-1010', 'sess-1010', 'pending',    1947.00, 100.00,  0.00, 1847.00, '14 CG Road, Ahmedabad, Gujarat 380009, India', '2026-07-16 17:00:00+05:30')
 ON CONFLICT (order_id) DO NOTHING;
 
-INSERT INTO order_items (order_id, item_id, quantity, unit_price) VALUES
-('ord-1001', 'item-1001', 1,  499.00),
-('ord-1001', 'item-1004', 2,  349.00),
-('ord-1002', 'item-1010', 1,  299.00),
-('ord-1002', 'item-1019', 1,  299.00),
-('ord-1003', 'item-1030', 1, 1499.00),
-('ord-1004', 'item-1019', 2,  299.00),
-('ord-1005', 'item-1002', 1, 1299.00),
-('ord-1005', 'item-1021', 1,  449.00),
-('ord-1006', 'item-1003', 1,  799.00),
-('ord-1007', 'item-1004', 1,  349.00),
-('ord-1008', 'item-1047', 1, 1899.00),
-('ord-1009', 'item-1054', 1, 1599.00),
-('ord-1010', 'item-1029', 2,  249.00),
-('ord-1010', 'item-1034', 1,  349.00),
-('ord-1011', 'item-1048', 1,  399.00),
-('ord-1011', 'item-1052', 2,  149.00),
-('ord-1012', 'item-1071', 1, 1299.00),
-('ord-1013', 'item-1074', 1, 1499.00),
-('ord-1014', 'item-1006', 1, 1799.00),
-('ord-1015', 'item-1014', 1, 1599.00),
-('ord-1016', 'item-1019', 1,  299.00),
-('ord-1016', 'item-1029', 1,  249.00),
-('ord-1016', 'item-1052', 1,  149.00),
-('ord-1017', 'item-1057', 1,  599.00),
-('ord-1018', 'item-1009', 1,  599.00),
-('ord-1019', 'item-1062', 1, 1299.00),
-('ord-1020', 'item-1066', 1,  899.00),
-('ord-1020', 'item-1064', 1,  499.00),
-('ord-1021', 'item-1047', 1, 1899.00),
-('ord-1021', 'item-1049', 1,  599.00),
-('ord-1022', 'item-1075', 1,  999.00),
-('ord-1023', 'item-1072', 1,  799.00),
-('ord-1023', 'item-1070', 1,  599.00),
-('ord-1024', 'item-1002', 1, 1299.00),
-('ord-1024', 'item-1004', 1,  349.00),
-('ord-1025', 'item-1030', 1, 1499.00),
-('ord-1025', 'item-1044', 1,  249.00),
-('ord-1025', 'item-1038', 1,  199.00)
+INSERT INTO order_items (order_id, item_id, quantity, unit_price, line_total) VALUES
+('ord-1001', 'item-1001', 1,  499.00,  499.00),
+('ord-1001', 'item-1004', 2,  349.00,  698.00),
+('ord-1002', 'item-1010', 1,  299.00,  299.00),
+('ord-1002', 'item-1019', 1,  299.00,  299.00),
+('ord-1003', 'item-1030', 1, 1499.00, 1499.00),
+('ord-1004', 'item-1019', 2,  299.00,  598.00),
+('ord-1005', 'item-1002', 1, 1299.00, 1299.00),
+('ord-1005', 'item-1021', 1,  449.00,  449.00),
+('ord-1006', 'item-1003', 1,  799.00,  799.00),
+('ord-1007', 'item-1004', 1,  349.00,  349.00),
+('ord-1008', 'item-1047', 1, 1899.00, 1899.00),
+('ord-1009', 'item-1054', 1, 1599.00, 1599.00),
+('ord-1010', 'item-1029', 2,  249.00,  498.00),
+('ord-1010', 'item-1034', 1,  349.00,  349.00),
+('ord-1011', 'item-1048', 1,  399.00,  399.00),
+('ord-1011', 'item-1052', 2,  149.00,  298.00),
+('ord-1012', 'item-1071', 1, 1299.00, 1299.00),
+('ord-1013', 'item-1074', 1, 1499.00, 1499.00),
+('ord-1014', 'item-1006', 1, 1799.00, 1799.00),
+('ord-1015', 'item-1014', 1, 1599.00, 1599.00),
+('ord-1016', 'item-1019', 1,  299.00,  299.00),
+('ord-1016', 'item-1029', 1,  249.00,  249.00),
+('ord-1016', 'item-1052', 1,  149.00,  149.00),
+('ord-1017', 'item-1057', 1,  599.00,  599.00),
+('ord-1018', 'item-1009', 1,  599.00,  599.00),
+('ord-1019', 'item-1062', 1, 1299.00, 1299.00),
+('ord-1020', 'item-1066', 1,  899.00,  899.00),
+('ord-1020', 'item-1064', 1,  499.00,  499.00),
+('ord-1021', 'item-1047', 1, 1899.00, 1899.00),
+('ord-1021', 'item-1049', 1,  599.00,  599.00),
+('ord-1022', 'item-1075', 1,  999.00,  999.00),
+('ord-1023', 'item-1072', 1,  799.00,  799.00),
+('ord-1023', 'item-1070', 1,  599.00,  599.00),
+('ord-1024', 'item-1002', 1, 1299.00, 1299.00),
+('ord-1024', 'item-1004', 1,  349.00,  349.00),
+('ord-1025', 'item-1030', 1, 1499.00, 1499.00),
+('ord-1025', 'item-1044', 1,  249.00,  249.00),
+('ord-1025', 'item-1038', 1,  199.00,  199.00)
 ON CONFLICT (order_id, item_id) DO NOTHING;
 
 \echo 'ShopAssist :: seed_orders.sql loaded (25 orders, 38 order items).'
-\echo 'ShopAssist :: PostgreSQL initialization completed successfully.'
