@@ -1,11 +1,24 @@
 # shopassist-database
 
+> **New here, or just want to see it run?** Don't start with this repo.
+> Clone all five ShopAssist repos as siblings and run
+> [`shopassist-devops`](../shopassist-devops/) — one command brings up the
+> whole platform, with **Docker Desktop as the only thing you install**.
+> That README also has a plain-language tour of the architecture and a
+> [concepts + further-reading guide](../shopassist-devops/README.md#concepts-and-where-to-read-more)
+> for every AI term used across these projects.
+>
+> Read on here for the schema itself, and how to run or reset the database on its own.
+
 Dockerized PostgreSQL 17 + [pgvector](https://github.com/pgvector/pgvector)
 for ShopAssist — order/customer/catalog data plus vector storage for RAG
-semantic search. Table and column names match `shopassist`'s own local
-SQLite dev database (`db/schema_sqlite.sql` in the `shopassist` repo) 1:1,
-so `shopassist`'s `clients/ecommerce_api_client.py` works unchanged against
-either, just by setting `DATABASE_URL`.
+semantic search. **This repo is the single source of truth for the
+ShopAssist database** — `shopassist-service` carries no schema, no
+migrations, and no local database of its own (the SQLite dev DB and the
+bundled `postgres` service it used to ship were both removed when the
+database moved here). Its `clients/ecommerce_api_client.py` issues SQL
+directly against this schema, so a table or column rename here breaks that
+project at runtime.
 
 ## Layout
 
@@ -16,10 +29,10 @@ shopassist-database/
 ├── requirements.txt           # one file, every Python script in postgres/scripts/
 └── postgres/
     ├── schema/
-    │   ├── schema.sql         # tables + enum types (single source of truth)
+    │   ├── schema.sql         # tables (single source of truth)
     │   ├── constraints.sql    # FKs, UNIQUE, CHECK
     │   └── indexes.sql        # performance indexes
-    ├── seeds/                 # relational sample data: customers → items → sessions → orders
+    ├── seeds/                 # relational sample data: customers → items → sessions → orders → item_reviews
     ├── rag_sources/           # sample PDFs/sheets/text for RAG - see "RAG semantic search"
     └── scripts/
         ├── create_db.py         # create db (if needed), apply schema, load seeds
@@ -29,7 +42,8 @@ shopassist-database/
 ```
 
 Schema files apply in order — `schema.sql` → `constraints.sql` →
-`indexes.sql` → seeds (`customers` → `items` → `sessions` → `orders`) —
+`indexes.sql` → seeds (`customers` → `items` → `sessions` → `orders` →
+`item_reviews`) —
 whether via Docker's auto-init or `create_db.py`/`reset_db.py`. Every file
 is idempotent: `CREATE TABLE`/`INDEX IF NOT EXISTS`, a `pg_constraint`
 guard before each `ALTER TABLE ADD CONSTRAINT`, and `ON CONFLICT DO NOTHING` on every seed `INSERT` — safe to rerun any of them against an
@@ -43,7 +57,6 @@ plugin](https://docs.docker.com/compose/install/linux/)). Check with
 `docker compose version`.
 
 ```bash
-docker volume create shopassist-postgres-data   # one-time, persists data
 docker compose up -d
 docker compose ps                               # STATUS should read "healthy"
 ```
@@ -107,12 +120,13 @@ version if it isn't already there.
 
 ## Schema
 
-Six tables:
+Seven tables:
 
 | Table               | Purpose                        | Key relationship                                          |
 | ------------------- | ------------------------------ | --------------------------------------------------------- |
-| `customers`       | People who place orders        | referenced by`sessions.user_id`, `orders.user_id`     |
-| `items`           | Product catalog (INR)          | referenced by`order_items.item_id`                      |
+| `customers`       | People who place orders        | referenced by`sessions.user_id`, `orders.user_id`, `item_reviews.user_id` |
+| `items`           | Product catalog (INR)          | referenced by`order_items.item_id`, `item_reviews.item_id` |
+| `item_reviews`    | Customer product reviews       | belongs to an item and a customer                         |
 | `sessions`        | Browsing/chat sessions         | belongs to a customer; referenced by`orders.session_id` |
 | `orders`          | Order headers                  | belongs to a customer + optional session, has many items  |
 | `order_items`     | Order line items               | belongs to an order and an item                           |
@@ -122,6 +136,8 @@ Six tables:
 erDiagram
     CUSTOMERS ||--o{ SESSIONS : starts
     CUSTOMERS ||--o{ ORDERS : places
+    CUSTOMERS ||--o{ ITEM_REVIEWS : writes
+    ITEMS ||--o{ ITEM_REVIEWS : "reviewed in"
     SESSIONS |o--o{ ORDERS : "placed during"
     ORDERS ||--o{ ORDER_ITEMS : contains
     ITEMS ||--o{ ORDER_ITEMS : "ordered as"
@@ -145,41 +161,48 @@ erDiagram
         int stock_quantity
         boolean is_active
     }
+    ITEM_REVIEWS {
+        text review_id PK
+        text item_id FK
+        text user_id FK
+        varchar review_title
+        text review_content
+    }
     SESSIONS {
-        varchar session_id PK
-        varchar user_id FK
+        text session_id PK
+        text user_id FK
         varchar device_type
-        enum status
+        text status
         timestamptz started_at
         timestamptz ended_at
     }
     ORDERS {
-        varchar order_id PK
-        varchar user_id FK
-        varchar session_id FK
-        enum status
+        text order_id PK
+        text user_id FK
+        text session_id FK
+        text status
         numeric subtotal
         numeric discount
         numeric shipping_fee
         numeric total_amount
     }
     ORDER_ITEMS {
-        varchar order_id FK
-        varchar item_id FK
+        text order_id FK
+        text item_id FK
         int quantity
         numeric unit_price
         numeric line_total
     }
 ```
 
-`document_chunks` sits outside this diagram — no FKs to the other five
+`document_chunks` sits outside this diagram — no FKs to the other six
 tables, populated by `postgres/scripts/init_vector_store.py` and by
 `PgVectorRAGService` (see **RAG semantic search** below), not by this
 repo's relational seed data:
 
 ```text
 document_chunks {
-    varchar     doc_id PK       -- matches shopassist's ChunkedDocument.doc_id 1:1
+    varchar     doc_id PK       -- matches shopassist-service's ChunkedDocument.doc_id 1:1
     text        content
     vector(768) embedding       -- nomic-embed-text output dimension
     varchar     source_type
@@ -197,21 +220,29 @@ document_chunks {
   `nomic-embed-text` embeddings are meant to be compared.
 
 See **RAG semantic search** below for how this table gets populated and
-queried, and what `shopassist` needs on its side to use it.
+queried, and what `shopassist-service` needs on its side to use it.
 
 ### Naming conventions
 
 - Tables: plural, `snake_case` (`order_items`, not `OrderItem`).
 - Primary keys: `<table_singular>_id` (`item_id`, `session_id`,
-  `order_id`), not a generic `id` — matches `shopassist`'s own
-  `db/schema_sqlite.sql` exactly. The one exception is `customers`, whose
-  key is `user_id` rather than `customer_id` — that's `shopassist`'s own
-  naming choice (the identifier `shopassist-client` sends at login, used
-  end to end), carried through unchanged here.
-- `user_id`, `item_id`, `session_id`, `order_id` are human-readable
-  business keys (`alum-1001`, `item-1001`, `sess-1001`, `ord-1001`), not
-  auto-increment integers or UUIDs — `VARCHAR(20)`, supplied explicitly on
-  `INSERT` (see `postgres/seeds/`).
+  `order_id`), not a generic `id`. The one exception is `customers`,
+  whose key is `user_id` rather than `customer_id` — that's
+  `shopassist-service`'s own naming choice (the identifier
+  `shopassist-client` sends at login, used end to end), carried through
+  unchanged here.
+- `user_id`, `item_id`, `session_id`, `order_id`, `review_id` are
+  human-readable business keys (`alum-1001`, `item-1001`, `sess-1001`,
+  `ord-1001`, `rev-1001`), not auto-increment integers or UUIDs — `TEXT`,
+  supplied explicitly on `INSERT` (see `postgres/seeds/`). `TEXT` rather
+  than a bounded `VARCHAR(n)`: `item_id` also carries product IDs from the
+  Amazon-style source CSV that `shopassist-service`'s RAG pipeline loads,
+  which routinely exceed any short bound.
+- Status columns (`orders.status`, `sessions.status`) are `TEXT` with a
+  `CHECK` constraint rather than enum types. `shopassist-service` writes
+  them as plain string literals, and a `CHECK` set is far cheaper to extend
+  than an enum (`ALTER TYPE ... ADD VALUE` can't run in a transaction and
+  can't remove a label).
 - Foreign keys: same name as the primary key they reference
   (`sessions.user_id` / `orders.user_id` reference `customers.user_id`).
 - Constraint names: `<type>_<table>_<column(s)>` (`fk_orders_user`,
@@ -235,9 +266,17 @@ queried, and what `shopassist` needs on its side to use it.
 | `order_items.order_id → orders.order_id`  | `CASCADE`  | Line items have no lifecycle independent of their order                                                         |
 | `order_items.item_id → items.item_id`     | `RESTRICT` | Historical order items can't reference a hard-deleted item — deactivate via`items.is_active = false` instead |
 
-`order_items.line_total` is `GENERATED ALWAYS AS (quantity * unit_price) STORED` — never part of an `INSERT` column list, and never join back to
-`items.price` to compute historical order totals (price can change after
-an order is placed; `unit_price` snapshots what was actually paid).
+`order_items.line_total` is a **plain stored column**, not `GENERATED
+ALWAYS AS (quantity * unit_price) STORED`. It was generated in an earlier
+revision, but `shopassist-service`'s `EcommerceClient.create_order()` names
+it explicitly in its `INSERT` column list, and Postgres rejects any
+`INSERT` that supplies a value for a generated column — order creation
+failed outright against that shape. Only a non-negative `CHECK` guards it
+now; the app is trusted to keep it equal to `quantity * unit_price`.
+
+Never join back to `items.price` to compute historical order totals either
+way (price can change after an order is placed; `unit_price` snapshots what
+was actually paid).
 
 ## RAG semantic search
 
@@ -268,7 +307,7 @@ against this table is a nearest-neighbor query (`ORDER BY embedding <=> ...`), n
 
 ### `PgVectorRAGService`
 
-`PgVectorRAGService` is `shopassist`'s RAG service, backed by this table.
+`PgVectorRAGService` is `shopassist-service`'s RAG service, backed by this table.
 It exposes two operations:
 
 - **`ingest_document(doc)`** — embed step: given a `ChunkedDocument`
@@ -304,7 +343,7 @@ call must be wired up correctly before this table sees any real traffic.
 `postgres/scripts/init_vector_store.py` (below) implements this exact
 `embed → upsert` pattern already, end-to-end and tested against a real
 Postgres + Ollama — read it alongside implementing `PgVectorRAGService`
-in `shopassist` itself.
+in `shopassist-service` itself.
 
 ### Populating `document_chunks`: `init_vector_store.py`
 
@@ -416,7 +455,7 @@ destroys persisted data):
 
 ```bash
 docker compose down
-docker volume rm shopassist-postgres-data && docker volume create shopassist-postgres-data
+docker volume rm shopassist-postgres-data   # recreated automatically on the next `up`
 docker compose up -d
 ```
 
@@ -454,6 +493,7 @@ from sqlalchemy import create_engine
 engine = create_engine(f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}")
 ```
 
-`shopassist` picks this up as `DATABASE_URL` (see its own
-`clients/ecommerce_api_client.py` and `.env.example`). Leave `DATABASE_URL`
-unset there to keep using its local SQLite dev database instead.
+`shopassist-service` picks this up as `DATABASE_URL` (see its own
+`clients/ecommerce_api_client.py` and `.env.example`). It is **required**
+there — that project has no fallback database, so `EcommerceClient` raises
+at startup if it's unset rather than reaching for anything local.

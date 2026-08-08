@@ -34,6 +34,8 @@ services:
       - ./postgres/seeds/seed_items.sql:/docker-entrypoint-initdb.d/05_seed_items.sql:ro
       - ./postgres/seeds/seed_sessions.sql:/docker-entrypoint-initdb.d/06_seed_sessions.sql:ro
       - ./postgres/seeds/seed_orders.sql:/docker-entrypoint-initdb.d/07_seed_orders.sql:ro
+      # Loads last - references both items (06) and customers (04).
+      - ./postgres/seeds/seed_item_reviews.sql:/docker-entrypoint-initdb.d/08_seed_item_reviews.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopassist} -d ${POSTGRES_DB:-shopassist}"]
       interval: 10s
@@ -118,6 +120,17 @@ networks:
     name: shopassist-network
 
 volumes:
+  # Compose-managed, but with an explicit fixed `name:` (no project-name
+  # prefix) so the same volume is reused whether this file runs standalone
+  # from this repo or via shopassist-devops's platform-wide compose - both
+  # see one database, not two.
+  #
+  # Deliberately NOT `external: true` any more: that required a manual
+  # `docker volume create shopassist-postgres-data` before the very first
+  # `docker compose up`, which broke running the whole platform with a
+  # single command from shopassist-devops. Compose now creates it on demand
+  # and still leaves it in place across `docker compose down`. An existing
+  # volume of this name is picked up as-is, so data from before this change
+  # survives.
   shopassist-postgres-data:
     name: shopassist-postgres-data
-    external: true

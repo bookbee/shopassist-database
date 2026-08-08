@@ -3,12 +3,11 @@
 -- human-readable IDs (item-1001 ...) so order_items in seed_orders.sql can
 -- reference them deterministically.
 --
--- Matches shopassist's own db/seed_sqlite.sql 1:1 by item_id/description/
--- category/price/mrp/stock_quantity - see ../../README.md.
--- Names here are prefixed with "IISc " (e.g. "IISc Crest T-Shirt"); that
--- repo's seed_sqlite.sql deliberately drops the prefix - a stylistic
--- difference between the two seed sets, not a sync error, per that file's
--- own header comment.
+-- The rating/rating_count/discount_percentage/img_link/product_link
+-- columns are left unset here: they exist for the Amazon-style product CSV
+-- that shopassist-service's RAG pipeline ingests (see ../schema/schema.sql),
+-- and this hand-written catalog predates that dataset - all five are
+-- nullable for exactly this reason. See ../../README.md.
 
 \echo 'ShopAssist :: loading seed_items.sql (items) ...'
 

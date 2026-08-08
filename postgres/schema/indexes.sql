@@ -11,6 +11,12 @@
 CREATE INDEX IF NOT EXISTS idx_items_category        ON items(category);
 CREATE INDEX IF NOT EXISTS idx_items_is_active        ON items(is_active);
 
+-- item_reviews is read two ways: "all reviews for this product" (the RAG
+-- ingestion pipeline's items-to-reviews join) and "is this review mine?"
+-- (EcommerceClient.remove_review's author check).
+CREATE INDEX IF NOT EXISTS idx_item_reviews_item_id   ON item_reviews(item_id);
+CREATE INDEX IF NOT EXISTS idx_item_reviews_user_id   ON item_reviews(user_id);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id       ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status        ON sessions(status);
 
