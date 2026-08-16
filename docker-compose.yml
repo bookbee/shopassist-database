@@ -37,7 +37,21 @@ services:
       # Loads last - references both items (06) and customers (04).
       - ./postgres/seeds/seed_item_reviews.sql:/docker-entrypoint-initdb.d/08_seed_item_reviews.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopassist} -d ${POSTGRES_DB:-shopassist}"]
+      # $$POSTGRES_USER, not ${POSTGRES_USER:-shopassist}: `$$` escapes the
+      # `$` so Compose leaves it alone and the shell *inside the container*
+      # expands it from the container's own environment - i.e. from whatever
+      # actually created the database, a few lines above.
+      #
+      # Compose substitution was wrong here. It resolves against THIS repo's
+      # .env, while shopassist-devops pins the container's real credentials
+      # from its own SHOPASSIST_DATABASE_* vars. Change POSTGRES_USER in this
+      # repo's .env and the platform created the role from one name but
+      # probed it under another: pg_isready fails forever, postgres never
+      # goes healthy, and `api` (condition: service_healthy) plus `client`
+      # behind it never start at all - with nothing in any log pointing at a
+      # credentials mismatch as the cause. Reading the container's own env
+      # cannot disagree with the container's own env.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
       timeout: 5s
       retries: 5
