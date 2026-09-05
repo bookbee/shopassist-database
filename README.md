@@ -229,7 +229,7 @@ queried, and what `shopassist-service` needs on its side to use it.
   `order_id`), not a generic `id`. The one exception is `customers`,
   whose key is `user_id` rather than `customer_id` — that's
   `shopassist-service`'s own naming choice (the identifier
-  `shopassist-client` sends at login, used end to end), carried through
+  `shopassist-web` sends at login, used end to end), carried through
   unchanged here.
 - `user_id`, `item_id`, `session_id`, `order_id`, `review_id` are
   human-readable business keys (`alum-1001`, `item-1001`, `sess-1001`,
